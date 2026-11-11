@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SampleChain · Pasaporte digital de muestras</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Instrument+Sans:wght@400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{--bg:#E6EAED;--panel:#F5F7F8;--ink:#16202A;--mute:#5A6773;--line:#C5CED5;--brine:#0E6B6E;--on:#fff;--bad:#B3261E;--ok:#1E7A46;--warn:#9A6200;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#10171D;--panel:#18222A;--ink:#E6ECF0;--mute:#9AA8B3;--line:#2B3944;--brine:#3FB6B9;--on:#08141A;--bad:#FF8A80;--ok:#6FD39A;--warn:#F0B35A;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.5 "Instrument Sans",system-ui,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+h1,h2,h3{font-family:"Bricolage Grotesque",system-ui,sans-serif;margin:0;line-height:1.15}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;padding:20px clamp(16px,4vw,48px);border-bottom:1px solid var(--line)}
+header h1{font-size:26px;font-weight:700}
+header p{margin:2px 0 0;color:var(--mute);font-size:14px}
+.wallet{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.chip{font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:99px;color:var(--mute)}
+main{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:clamp(16px,3vw,40px);padding:clamp(16px,4vw,40px) clamp(16px,4vw,48px)}
+@media(max-width:860px){main{grid-template-columns:1fr}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px}
+.tabs{display:flex;gap:4px;margin:14px 0 18px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs button{background:none;border:0;border-bottom:3px solid transparent;color:var(--mute);font:600 14px inherit;font-family:inherit;padding:8px 10px;cursor:pointer;white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--ink);border-color:var(--brine)}
+label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px}
+input,select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+input[type=file]{padding:7px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button.go{margin-top:18px;background:var(--brine);color:var(--on);border:0;border-radius:6px;padding:10px 16px;font:600 15px inherit;font-family:inherit;cursor:pointer}
+button.go:disabled{opacity:.55;cursor:wait}
+button.ghost{background:none;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:8px 12px;font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--brine);outline-offset:2px}
+.hint{color:var(--mute);font-size:13px;margin:6px 0 0}
+.audit-head{display:flex;gap:16px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;margin-bottom:6px}
+.search{display:flex;gap:8px;margin:14px 0}
+.status{display:inline-block;font-weight:600;font-size:13px;padding:3px 10px;border-radius:99px;background:var(--brine);color:var(--on)}
+.status.s4{background:var(--ok)}
+dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:14px 0;font-size:14px}
+dt{color:var(--mute)} dd{margin:0;word-break:break-all}
+.chain{list-style:none;margin:18px 0 0;padding:0}
+.chain li{position:relative;padding:0 0 18px 34px}
+.chain li::before{content:"";position:absolute;left:9px;top:20px;bottom:-2px;width:2px;background:var(--line)}
+.chain li:last-child::before{display:none}
+.chain li::after{content:"";position:absolute;left:0;top:3px;width:20px;height:20px;border-radius:50%;border:3px solid var(--brine);background:var(--panel)}
+.chain li.cert::after{background:var(--ok);border-color:var(--ok)}
+.chain b{font-family:"Bricolage Grotesque",sans-serif;font-size:16px}
+.chain small{display:block;color:var(--mute);font-size:12.5px;word-break:break-all}
+.verify{border:1px dashed var(--line);border-radius:8px;padding:14px;margin-top:6px}
+.result{margin-top:10px;font-weight:600}
+.result.ok{color:var(--ok)} .result.bad{color:var(--bad)}
+#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:92vw;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;display:none;z-index:9}
+#toast a{color:inherit}
+.empty{color:var(--mute);padding:24px 0}
+@media(prefers-reduced-motion:no-preference){.chain li{animation:in .25s ease both}@keyframes in{from{opacity:0}to{opacity:1}}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>SampleChain</h1><p>Cada muestra, con su historia verificable.</p></div>
+  <div class="wallet"><span class="chip" id="net">Avalanche Fuji</span><span class="chip" id="roles" hidden></span><button class="ghost" id="connect">Conectar wallet</button></div>
+</header>
+<main>
+<section aria-labelledby="t-act">
+  <h2 id="t-act">Registrar un paso</h2>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="create">Crear muestra</button>
+    <button role="tab" aria-selected="false" data-tab="transfer">Transferir custodia</button>
+    <button role="tab" aria-selected="false" data-tab="lab">Laboratorio</button>
+    <button role="tab" aria-selected="false" data-tab="cert">Certificar</button>
+  </div>
+
+  <div data-pane="create">
+    <p class="hint">Rol: geólogo (recolector).</p>
+    <label for="c-id">ID de la muestra</label><input id="c-id" placeholder="LIT-001">
+    <div class="row"><div><label for="c-min">Mineral</label><input id="c-min" value="Litio"></div><div><label for="c-pro">Proyecto</label><input id="c-pro" placeholder="Salar de Olaroz"></div></div>
+    <div class="row"><div><label for="c-lat">Latitud</label><input id="c-lat" inputmode="decimal" placeholder="-23.5"></div><div><label for="c-lng">Longitud</label><input id="c-lng" inputmode="decimal" placeholder="-66.7"></div></div>
+    <label for="c-photo">Foto de la muestra</label><input id="c-photo" type="file" accept="image/*">
+    <button class="go" id="b-create">Firmar y crear muestra</button>
+  </div>
+
+  <div data-pane="transfer" hidden>
+    <p class="hint">Rol: recolector (a transportista) o transportista (a laboratorio).</p>
+    <label for="t-id">ID de la muestra</label><input id="t-id" placeholder="LIT-001">
+    <label for="t-act2">Paso</label>
+    <select id="t-act2"><option value="1">Entregar a transporte</option><option value="2">Entregar a laboratorio</option></select>
+    <label for="t-to">Wallet de destino</label><input id="t-to" placeholder="0x…">
+    <label for="t-file">Evidencia (opcional)</label><input id="t-file" type="file">
+    <button class="go" id="b-transfer">Firmar transferencia</button>
+  </div>
+
+  <div data-pane="lab" hidden>
+    <p class="hint">Rol: laboratorio, con la muestra en custodia.</p>
+    <label for="l-id">ID de la muestra</label><input id="l-id" placeholder="LIT-001">
+    <label for="l-act">Paso</label>
+    <select id="l-act"><option value="3">Preparación</option><option value="4">Análisis (resultado)</option></select>
+    <label for="l-file">Archivo de resultados o registro</label><input id="l-file" type="file">
+    <button class="go" id="b-lab">Firmar paso</button>
+  </div>
+
+  <div data-pane="cert" hidden>
+    <p class="hint">Rol: laboratorio. Requiere que el análisis esté registrado.</p>
+    <label for="x-id">ID de la muestra</label><input id="x-id" placeholder="LIT-001">
+    <label for="x-file">Certificado de análisis (PDF)</label><input id="x-file" type="file" accept="application/pdf">
+    <button class="go" id="b-cert">Firmar certificado</button>
+  </div>
+</section>
+
+<section aria-labelledby="t-aud">
+  <h2 id="t-aud">Auditoría pública</h2>
+  <p class="hint">No requiere wallet. Cualquiera puede consultar y verificar.</p>
+  <div class="search"><input id="a-id" placeholder="ID de la muestra, ej. LIT-001" aria-label="ID de la muestra"><button class="go" style="margin:0" id="b-load">Consultar</button></div>
+  <div id="audit"><p class="empty">Ingresá un ID para ver el pasaporte de la muestra.</p></div>
+</section>
+</main>
+<div id="toast" role="status"></div>
+
+<script>
+const ABI=[
+"function createSample(bytes32,string,bytes32)",
+"function transferCustody(bytes32,address,uint8,bytes32)",
+"function recordStep(bytes32,uint8,bytes32)",
+"function certify(bytes32,bytes32,string)",
+"function hasRole(bytes32,address) view returns (bool)",
+"function samples(bytes32) view returns (string mineralType,bytes32 metadataHash,address currentCustodian,uint8 status,uint64 createdAt,bool exists)",
+"function certificates(bytes32) view returns (bytes32 certHash,string uri,address lab)",
+"function getHistory(bytes32) view returns (tuple(uint8 action,address actor,address to,bytes32 evidenceHash,uint64 timestamp)[])"];
+const ACTIONS=["Muestra creada","Entregada a transporte","Recibida en laboratorio","Preparada","Analizada","Certificada"];
+const STATUS=["Creada","En tránsito","En laboratorio","Analizada","Certificada"];
+const EXPLORER="https://testnet.snowtrace.io";
+const $=id=>document.getElementById(id);
+const short=a=>a.slice(0,6)+"…"+a.slice(-4);
+let cfg={contract:"",rpc:"https://api.avax-test.network/ext/bc/C/rpc",chainId:43113},reader,signer,account;
+
+function toast(html,ms=6000){const t=$("toast");t.innerHTML=html;t.style.display="block";clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display="none",ms)}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const idOf=v=>ethers.id(v.trim());
+async function sha256(file){const b=await crypto.subtle.digest("SHA-256",await file.arrayBuffer());return "0x"+[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
+async function upload(file){
+  try{const f=new FormData();f.append("file",file);const r=await fetch("/api/upload",{method:"POST",body:f});if(!r.ok)throw 0;return await r.json()}
+  catch{return {hash:await sha256(file),url:""}}
+}
+
+async function init(){
+  try{cfg={...cfg,...await (await fetch("/api/config")).json()}}catch{}
+  if(!cfg.contract){toast("Falta CONTRACT_ADDRESS en el servidor (.env).",12000);return}
+  reader=new ethers.Contract(cfg.contract,ABI,new ethers.JsonRpcProvider(cfg.rpc));
+  const id=new URLSearchParams(location.search).get("id");
+  if(id){$("a-id").value=id;loadAudit()}
+}
+
+async function connect(){
+  if(!window.ethereum)return toast("Instalá MetaMask u otra wallet compatible.");
+  try{
+    await ethereum.request({method:"eth_requestAccounts"});
+    const hex="0x"+cfg.chainId.toString(16);
+    try{await ethereum.request({method:"wallet_switchEthereumChain",params:[{chainId:hex}]})}
+    catch(e){if(e.code===4902)await ethereum.request({method:"wallet_addEthereumChain",params:[{chainId:hex,chainName:"Avalanche Fuji",nativeCurrency:{name:"AVAX",symbol:"AVAX",decimals:18},rpcUrls:[cfg.rpc],blockExplorerUrls:[EXPLORER]}]});else throw e}
+    signer=await new ethers.BrowserProvider(window.ethereum).getSigner();
+    account=await signer.getAddress();
+    $("connect").textContent=short(account);
+    const names=["COLLECTOR","TRANSPORTER","LAB"],labels={COLLECTOR:"Geólogo",TRANSPORTER:"Transporte",LAB:"Laboratorio"};
+    const has=await Promise.all(names.map(n=>reader.hasRole(ethers.id(n),account)));
+    const mine=names.filter((_,i)=>has[i]).map(n=>labels[n]);
+    $("roles").hidden=false;$("roles").textContent=mine.length?mine.join(" · "):"Sin rol asignado";
+  }catch(e){toast("No se pudo conectar: "+esc(e.shortMessage||e.message))}
+}
+
+async function send(btn,fn){
+  if(!signer)return toast("Conectá tu wallet primero.");
+  if(!cfg.contract)return toast("Falta la dirección del contrato.");
+  const old=btn.textContent;btn.disabled=true;btn.textContent="Firmando…";
+  try{
+    const c=new ethers.Contract(cfg.contract,ABI,signer);
+    const tx=await fn(c);btn.textContent="Confirmando…";await tx.wait();
+    toast(`Listo. <a href="${EXPLORER}/tx/${tx.hash}" target="_blank" rel="noopener">Ver transacción</a>`,10000);
+    return true;
+  }catch(e){toast("Rechazada: "+esc(e.reason||e.shortMessage||e.message),9000)}
+  finally{btn.disabled=false;btn.textContent=old}
+}
+const needId=v=>{if(!v.trim()){toast("Ingresá el ID de la muestra.");return false}return true};
+const fileHash=async f=>f?(await upload(f)).hash:ethers.ZeroHash;
+
+$("b-create").onclick=async e=>{
+  const id=$("c-id").value;if(!needId(id))return;
+  const photo=$("c-photo").files[0];if(!photo)return toast("Subí la foto de la muestra.");
+  const photoHash=(await upload(photo)).hash;
+  const meta=JSON.stringify({id:id.trim(),project:$("c-pro").value,lat:$("c-lat").value,lng:$("c-lng").value,photoHash,at:new Date().toISOString()});
+  const m=await upload(new File([meta],"metadata-"+id.trim()+".json",{type:"application/json"}));
+  if(await send(e.target,c=>c.createSample(idOf(id),$("c-min").value,m.hash))){$("a-id").value=id.trim();loadAudit()}
+};
+$("b-transfer").onclick=async e=>{
+  const id=$("t-id").value;if(!needId(id))return;
+  const to=$("t-to").value.trim();if(!ethers.isAddress(to))return toast("La wallet de destino no es válida.");
+  const ev=await fileHash($("t-file").files[0]);
+  if(await send(e.target,c=>c.transferCustody(idOf(id),to,+$("t-act2").value,ev))){$("a-id").value=id.trim();loadAudit()}
+};
+$("b-lab").onclick=async e=>{
+  const id=$("l-id").value;if(!needId(id))return;
+  const ev=await fileHash($("l-file").files[0]);
+  if(await send(e.target,c=>c.recordStep(idOf(id),+$("l-act").value,ev))){$("a-id").value=id.trim();loadAudit()}
+};
+$("b-cert").onclick=async e=>{
+  const id=$("x-id").value;if(!needId(id))return;
+  const f=$("x-file").files[0];if(!f)return toast("Subí el PDF del certificado.");
+  const up=await upload(f);
+  if(await send(e.target,c=>c.certify(idOf(id),up.hash,up.url))){$("a-id").value=id.trim();loadAudit()}
+};
+
+async function loadAudit(){
+  const label=$("a-id").value;if(!label.trim()||!reader)return;
+  const box=$("audit");box.innerHTML='<p class="empty">Consultando la cadena…</p>';
+  try{
+    const id=idOf(label),s=await reader.samples(id);
+    if(!s.exists){box.innerHTML='<p class="empty">No hay una muestra registrada con ese ID.</p>';return}
+    const hist=await reader.getHistory(id),cert=await reader.certificates(id);
+    const certified=Number(s.status)===4;
+    box.innerHTML=`
+      <div class="audit-head"><div><h3>${esc(label.trim())}</h3><span class="status s${s.status}">${STATUS[s.status]}</span></div><div id="qr" aria-label="QR de la muestra"></div></div>
+      <dl><dt>Mineral</dt><dd>${esc(s.mineralType)}</dd><dt>Custodio actual</dt><dd>${s.currentCustodian}</dd><dt>Metadatos (hash)</dt><dd>${s.metadataHash}</dd><dt>Creada</dt><dd>${new Date(Number(s.createdAt)*1000).toLocaleString("es-AR")}</dd></dl>
+      <ol class="chain">${hist.map(h=>`<li class="${h.action==5?"cert":""}"><b>${ACTIONS[h.action]}</b><small>Firmó ${h.actor}${h.action==1||h.action==2?`<br>Destino ${h.to}`:""}<br>${new Date(Number(h.timestamp)*1000).toLocaleString("es-AR")}${h.evidenceHash!==ethers.ZeroHash?`<br>Evidencia ${h.evidenceHash}`:""}</small></li>`).join("")}</ol>
+      ${certified?`<div class="verify"><b>Verificar certificado</b><p class="hint">Subí el PDF que recibiste. Se compara su huella con la registrada por el laboratorio.</p><input type="file" id="v-file" accept="application/pdf" aria-label="PDF a verificar">${cert.uri?`<p class="hint"><a href="${esc(cert.uri)}">Descargar el certificado original</a></p>`:""}<div class="result" id="v-res" role="status"></div></div>`:""}`;
+    new QRCode($("qr"),{text:`${location.origin}/verify/${encodeURIComponent(label.trim())}`,width:112,height:112});
+    if(certified)$("v-file").onchange=async ev=>{
+      const f=ev.target.files[0];if(!f)return;
+      const ok=(await sha256(f))===cert.certHash,r=$("v-res");
+      r.className="result "+(ok?"ok":"bad");
+      r.textContent=ok?"Certificado íntegro: coincide con el registro del laboratorio.":"Evidencia alterada: el archivo no coincide con lo firmado.";
+    };
+  }catch(e){box.innerHTML=`<p class="empty">No se pudo leer la cadena: ${esc(e.shortMessage||e.message)}</p>`}
+}
+
+$("connect").onclick=connect;
+$("b-load").onclick=loadAudit;
+$("a-id").onkeydown=e=>{if(e.key==="Enter")loadAudit()};
+document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("[data-tab]").forEach(x=>x.setAttribute("aria-selected",x===b));
+  document.querySelectorAll("[data-pane]").forEach(p=>p.hidden=p.dataset.pane!==b.dataset.tab);
+});
+if(window.ethereum)ethereum.on?.("accountsChanged",()=>location.reload());
+init();
+</script>
+</body>
+</html>
